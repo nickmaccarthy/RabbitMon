@@ -1,0 +1,8 @@
+elasticsearch:
+  hosts: http://elasticsearch.some.company.com:80
+  args:
+    http_auth: [ 'user', 'password'' ]
+
+rabbit_host: http://rmq.some.company.com 
+rabbit_username: 'rabbit-user' 
+rabbit_password: 'p@ssw0rd!'
