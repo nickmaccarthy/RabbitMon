@@ -1,8 +1,21 @@
+# Provide details for our elasticsearch connection where the metrics will be sent 
 elasticsearch:
   hosts: http://elasticsearch.some.company.com:80
   args:
     http_auth: [ 'user', 'password'' ]
 
-rabbit_host: http://rmq.some.company.com 
-rabbit_username: 'rabbit-user' 
-rabbit_password: 'p@ssw0rd!'
+# How many seconds we will wait between stat runs 
+scrape_interval: 20 
+
+
+# The rabbit connections we want to monitor 
+rabbit_connections:
+   - name: On-Prem-RMQ
+     host: http://mq.onprem.company.com 
+     username: rabbitmon 
+     password: 'p@ssw0rd'
+  
+  - name: Cloud-RMQ
+    host: https://mq.cloud.company.com 
+    username: rabbitmon
+    password: 'p@ssw0rd'
