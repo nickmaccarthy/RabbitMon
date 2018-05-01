@@ -88,6 +88,57 @@ class RabbitMon(object):
         es.index(index=get_es_index(), body=overview, doc_type='cluster-overview')
         logger.info('All done with clusterOverview on connection: %s' % (self.conn_name))
 
+    def connectionStats(self):
+        connections = self.get_data('/api/connections')
+
+        connection_ammount = len(connections)
+        conn_stats = {
+            '@timestamp': arrow.utcnow().format('YYYY-MM-DDTHH:mm:ssZ'),
+            'rabbit_connection': self.conn_name,
+            'connections_current': connection_ammount
+        }
+        es.index(index=get_es_index(), body=conn_stats, doc_type='connection-stats')
+
+        items = []
+        for conn in connections:
+            for fields in BLACKLIST_FIELDS.get('connectionStats', []):
+                conn = delete_keys_from_dict(conn, fields)
+            conn.update({  
+                    '@timestamp': arrow.utcnow().format('YYYY-MM-DDTHH:mm:ssZ'), 
+                    'rabbit_connection': self.conn_name, 
+                    '_index': get_es_index(), 
+                    '_type': 'connection-stats'
+                })
+            items.append(conn)
+        indexit = es_bulk(es, items)
+        logger.info("All done with connectionStats on connection: %s, items_inserted: %s, errors: %s" % (self.conn_name, indexit[0], indexit[1]))
+
+
+    def consumerStats(self):
+        consumers = self.get_data('/api/consumers')
+
+        consumer_count = len(consumers)
+        consumer_stats = {
+            '@timestamp': arrow.utcnow().format('YYYY-MM-DDTHH:mm:ssZ'),
+            'rabbit_connection': self.conn_name,
+            'consumers_current': consumer_count
+        }
+        es.index(index=get_es_index(), body=consumer_stats, doc_type='consumer-stats')
+
+        items = []
+        for consumer in consumers:
+            for fields in BLACKLIST_FIELDS.get('consumerStats', []):
+                consumer = delete_keys_from_dict(consumer, fields)
+            consumer.update({ 
+                    '@timestamp': arrow.utcnow().format('YYYY-MM-DDTHH:mm:ssZ'), 
+                    'rabbit_connection': self.conn_name, 
+                    '_index': get_es_index(), 
+                    '_type': 'consumer-stats'
+                })
+            items.append(consumer)
+        indexit = es_bulk(es, items)
+        logger.info("All done with consumerStats on connection: %s, items_inserted: %s, errors: %s" % (self.conn_name, indexit[0], indexit[1]))
+
     def nodeStats(self):
         nodes = self.get_data('/api/nodes')
         if len(nodes) > 0:
@@ -123,6 +174,8 @@ def worker(rabbit_connection):
     rm.clusterOverview()
     rm.queueStats()
     rm.nodeStats()
+    rm.connectionStats()
+    rm.consumerStats()
 
 
 def main():
