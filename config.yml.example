@@ -19,3 +19,20 @@ rabbit_connections:
     host: https://mq.cloud.company.com 
     username: rabbitmon
     password: 'p@ssw0rd'
+
+
+# There are some fields that come out of our API calls that Elsaticseach might not like
+# Here we can define which fields to blacklist from being sent to ES 
+# These lists/arrays represent a multilevel dictionary 
+# Example del queue['backing_queue_status']['delta'] can just be represented with a list like ['backing_queue_status', 'delta'] below
+blacklist_fields:
+    nodeStats:
+      - [ 'applications' ]
+      - [ 'auth_mechanisms' ]
+      - [ 'exchange_types' ]
+      - [ 'contexts' ]
+    queueStats: 
+      - ['backing_queue_status', 'delta']
+      - [ backing_queue_status', 'target_ram_count']
+    clusterOverview:
+      - ['listeners', 'socket_opts', 'linger']

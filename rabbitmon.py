@@ -30,9 +30,30 @@ config = load_config()
 
 es = Elasticsearch(config['elasticsearch']['hosts'], **config['elasticsearch'].get('args', {}))
 
-rabbit_conection = {}
-
 ES_INDEX = config.get('es_index', 'rabbitmon') 
+
+_default_blacklist_fields = [
+    ['backing_queue_status', 'delta'],
+    [ 'backing_queue_status', 'target_ram_count'],
+    ['listeners', 'socket_opts', 'linger']
+]
+
+BLACKLIST_FIELDS = config.get('blacklist_fields', {})
+
+def delete_keys_from_dict(dict_del, the_keys):
+    """
+    Delete the keys present in the lst_keys from the dictionary.
+    Loops recursively over nested dictionaries.
+    """
+    # make sure the_keys is a set to get O(1) lookups
+    if type(the_keys) is not set:
+        the_keys = set(the_keys)
+    for k,v in dict_del.items():
+        if k in the_keys:
+            del dict_del[k]
+        if isinstance(v, dict):
+            delete_keys_from_dict(v, the_keys)
+    return dict_del
 
 def get_es_index():
     return '{}-{}'.format(ES_INDEX, arrow.utcnow().format('YYYY.MM.DD'))
@@ -50,24 +71,41 @@ class RabbitMon(object):
     def get_data(self, endpoint):
         try:
             response = requests.get('{base}{endpoint}'.format(base=self.base_host, endpoint=endpoint), headers=self.base_headers, auth=self.basic_auth_tuple)
-            return response.json() 
+            if response.status_code in range(200,299):
+                return response.json()
+            else:
+                logger.error("Unable to request endpoint: %s, connection: %s, response: %s, status_code: %s" % (endpoint, self.conn_name, response, response.status_code))
         except Exception as e:
             logger.exception('Unable to request endpoint: %s for connection: %s, reason: %s' % (endpoint, self.conn_name, e))
     
     def clusterOverview(self):
         overview = self.get_data('/api/overview')
 
-        overview.update( { '@timestamp': arrow.utcnow().format('YYYY-MM-DDTHH:mm:ssZ'), 'rabbit_connection': self.conn_name })
+        for fields in BLACKLIST_FIELDS.get('clusterOverview', []):
+            overview = delete_keys_from_dict(overview, fields)
+
+        overview.update({ '@timestamp': arrow.utcnow().format('YYYY-MM-DDTHH:mm:ssZ'), 'rabbit_connection': self.conn_name })
         es.index(index=get_es_index(), body=overview, doc_type='cluster-overview')
-        logger.info('All done with clusterOverview on connection: %s' % self.conn_name)
+        logger.info('All done with clusterOverview on connection: %s' % (self.conn_name))
+
+    def nodeStats(self):
+        nodes = self.get_data('/api/nodes')
+        if len(nodes) > 0:
+            for node in nodes:
+                for fields in BLACKLIST_FIELDS.get('nodeStats', []):
+                    node = delete_keys_from_dict(node, fields)
+
+                node.update({ '@timestamp': arrow.utcnow().format('YYYY-MM-DDTHH:mm:ssZ'), 'rabbit_connection': self.conn_name })
+                es.index(index=get_es_index(), body=node, doc_type='node-stats') 
+        logger.info('All done with nodeStats on connection: %s' % (self.conn_name))
 
     def queueStats(self):
         queues = self.get_data('/api/queues')
         if queues is not None: 
             items = []
             for queue in queues:
-                del queue['backing_queue_status']['delta']
-                del queue['backing_queue_status']['target_ram_count']
+                for fields in BLACKLIST_FIELDS.get('queueStats', []):
+                    delete_keys_from_dict(queue, fields)
 
                 es_stuff = {
                     '@timestamp': arrow.utcnow().format('YYYY-MM-DDTHH:mm:ssZ'),
@@ -84,6 +122,8 @@ def worker(rabbit_connection):
     rm = RabbitMon(rabbit_connection)
     rm.clusterOverview()
     rm.queueStats()
+    rm.nodeStats()
+
 
 def main():
     pool = ThreadPool(processes=3)
