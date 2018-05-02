@@ -13,7 +13,7 @@ import time
 import yaml
 from multiprocessing.pool import ThreadPool
 
-logging.basicConfig(format="%(asctime)s - %(name)s - [ %(levelname)s ] - [%(filename)s:%(lineno)s - %(funcName)s() ] - %(message)s", level=logging.INFO)
+logging.basicConfig(format="%(asctime)s - %(name)s - [ %(levelname)s ] - [%(filename)s:%(lineno)s - %(funcName)s()] - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 SHOME = os.path.abspath(os.path.join(os.path.dirname(__file__)))
@@ -171,12 +171,8 @@ class RabbitMon(object):
 
 def worker(rabbit_connection):
     rm = RabbitMon(rabbit_connection)
-    rm.clusterOverview()
-    rm.queueStats()
-    rm.nodeStats()
-    rm.connectionStats()
-    rm.consumerStats()
-
+    for mod in config.get('enabled_modules', ['clusterOverview', 'nodeStats', 'queueStats']):
+        eval('rm.%s()' % (mod))
 
 def main():
     pool = ThreadPool(processes=3)

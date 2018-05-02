@@ -36,3 +36,10 @@ blacklist_fields:
       - [ backing_queue_status', 'target_ram_count']
     clusterOverview:
       - ['listeners', 'socket_opts', 'linger']
+
+# Modules enabled by default 
+enabled_modules:
+  - clusterOverview
+  - nodeStats
+  - queueStats
+  
